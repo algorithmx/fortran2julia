@@ -8,6 +8,9 @@ from translate import *
 
 
 fd = './Wannier/wannier90-2.1.0/src/postw90/'
+
+# !!! please create a folder called "jl" in the above folder to store the translated codes and logs.
+
 #allo_lines_fn, allo_json_fn, allo_log_fn, func_log_fn, modu_log_fn
 lines_fn = fd + 'jl/' + 'declarations.json'
 json_fn = fd + 'jl/' + 'allocatables.json'
