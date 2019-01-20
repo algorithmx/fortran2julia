@@ -16,3 +16,15 @@ If you have any questions / suggestions, please open an issue. Your question wil
 2. One needs to `using Printf` explicitly at the beginning of the translated code.
 
 3. Is it meaningfuul to translate ?
+
+## Oh, by the way, you still have to manually finalize the translation since:
+
+1. I haven't figured out how to deal with the fabulous FORTRAN `GOTO` instruction
+
+2. FORTRAN compiler can deal with negative array index if the array is allocated accordingly. I translate the FORTRAN90 `do` loop literaly even though the iterator may be negative. Please be cautious. I do not want to translate the do loop because I may replace most of them by something like `a[:,i] += b` in Julia. That can only be accomplished by a human ...
+
+3. Plans
+
+3.1 write a skeleton of each F90 file with empty contents inside functions
+
+3.2 automate the translation of the `read(...) ...` instructions in the F90 file
