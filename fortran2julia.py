@@ -4,7 +4,7 @@
 
 from os.path import dirname
 import sys
-sys.path.append('/home/yunlong/Dropbox/First_Principle_Calculations/codes/fortran2julia/')
+sys.path.append('.')
 
 # ---------------------------------------------------
 
