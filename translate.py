@@ -5,7 +5,8 @@ from collections import deque
 import time
 
 from os.path import dirname
-sys.path.append('/home/yunlong/Dropbox/First_Principle_Calculations/codes/fortran2julia/')
+# add the current directory mannually 
+sys.path.append('.')
 
 import Utinity as UT
 import ParseLit as PL
