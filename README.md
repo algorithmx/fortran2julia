@@ -2,7 +2,7 @@
 
 ## using python to translate fortran90 to julia 
 
-This is an ongoing effort to translate FORTRAN90 to Julia. I could use `ccal()` to simplify my life, but I really need to understand what happens in the original F90 code. 
+This is an ongoing effort to translate FORTRAN90 to Julia. I could use `ccall()` to simplify my life, but I really need to understand what happens in the original F90 code. 
 
 Life is simple here because the array conventions of the two languages are the same. 
 
