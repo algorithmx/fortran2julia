@@ -5,7 +5,9 @@
 This is an ongoing effort to translate FORTRAN90 to Julia. I could use `ccall()` to simplify my life, but I really need to understand what happens in the original F90 code. 
 
 Life is simple here because the array conventions of the two languages are the same. 
+
 https://docs.julialang.org/en/v1/manual/arrays/index.html
+
 https://docs.oracle.com/cd/E19957-01/805-4940/z400091044d0/
 
 If you have any questions / suggestions, please open an issue. Your question will help me to improve the code ! 
