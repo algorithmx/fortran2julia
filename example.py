@@ -7,9 +7,6 @@ from fortran2julia import *
 from translate import *
 
 
-# ---------------------------------------------------
-# In[ ]:
-
 fd = './Wannier/wannier90-2.1.0/src/postw90/'
 #allo_lines_fn, allo_json_fn, allo_log_fn, func_log_fn, modu_log_fn
 lines_fn = fd + 'jl/' + 'declarations.json'
@@ -19,7 +16,6 @@ funcs_fn = fd + 'jl/' + 'functions.json'
 modu_fn = fd + 'jl/' + 'modules.json'
 PV_log_fn = fd + 'jl/' + 'public_variables.json'
 
-#correct_function_calls("    if () call io_wocao end #COMM")
 
 for fn in os.listdir(fd):
     if os.path.isfile(fd+fn) and fn.endswith('.F90'):
