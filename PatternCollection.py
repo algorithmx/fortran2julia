@@ -182,17 +182,17 @@ array_head_patt = re.compile(r"\w+\[")
 #allocatable_patt = re.compile(r"\s*allocatable(\s*\,\s*[\w\s\,\(\)\:]+)*\s*\:\:\s*")  # catastrophic
 allocatable_patt = re.compile(r"\s*allocatable\s*(\s*\,\s*[\w]+\s*(\(\s*\:(\s*\,\s*\:\s*)*\))?)*\s*\:\:\s*")
 
-real_type_patt = re.compile(r"real(\(\s*(kind\s*\=)?\s*\w+\s*\))?")
+real_type_patt = re.compile(r"real\s*(\(\s*(kind\s*\=)?\s*\w+\s*\))?")
 
 #real_type_patt.search("    real(DP),allocatable :: wdist_wssc_frac(:,:,:,:), irdist_real(:,:,:,:,:)")
 
-complex_type_patt = re.compile(r"complex(\(\s*(kind\s*\=)?\s*\w+\s*\))?")
+complex_type_patt = re.compile(r"complex\s*(\(\s*(kind\s*\=)?\s*\w+\s*\))?")
 
 int_type_patt = re.compile(r"integer")
 
 bool_type_patt = re.compile(r"logical")
 
-chars_type_patt = re.compile(r"character\(\s*len\s*\=\s*\w+\s*\)")
+chars_type_patt = re.compile(r"character\s*\(\s*len\s*\=\s*\w+\s*\)")
 
 #chars_type_patt.search("    character( len = 60 )             :: header")
 
