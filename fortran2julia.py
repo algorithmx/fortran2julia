@@ -14,7 +14,7 @@ import json
 from collections import deque
 
 # you should verify "md5sum PatternCollection.py" and get exactly the following
-# 40d4cba4e1b7211163eb7920470cd303  PatternCollection.py
+# e6a4e246470cdeabb17313b2926b8812  PatternCollection.py
 import PatternCollection as PC
 import Utinity as UT
 import ParseFMT
