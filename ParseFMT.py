@@ -8,37 +8,23 @@ def prt_spaces(fmt):
     return ( ' '*int(fmt[0:-1]) )
 
 
-#prt_rep_chars(fmt::String) = (fmt[end-2]^parse(Int,fmt[1:end-5]))
-
-
 def prt_rep_chars(fmt):
     return ( fmt[-3] * int(fmt[0:-5]) )
-
-
-#prt_one_char(fmt::String) = ((fmt[end-1]=='%') ? ("%%") : (fmt[end-1]))
 
 
 def prt_one_char(fmt):
     return ( '%%' if (fmt[-2]=='%') else fmt[-2] )
 
 
-#prt_int(fmt::String) = ("%" * (fmt[2:end]) * "i")
-
-
 def prt_int(fmt):
     return ('%'+fmt[1:]+'i')
 
 
-#float_ord_format_spec(fmt::String) = ( (fmt[1]=='f'||fmt[1]=='F') ? ("%"*fmt[2:end]*"f") : repeat(("%"*split(fmt,['f','F'])[2]*"f"),parse(Int,split(fmt,['f','F'])[1])) )
-
-
 def float_ord_format_spec(fmt):
+    # matched r"\d*[fF]\d+\.\d+"
     return ( ('%'+fmt[1:]+'f') \
             if (fmt[0]=='f' or fmt[0]=='F') \
             else (('%'+fmt.lower().split('f')[1]+'f')*int(fmt.lower().split('f')[0])) )
-
-
-#float_sci_format_spec(fmt::String)
 
 
 def float_sci_format_spec(fmt):
