@@ -5,8 +5,7 @@ from collections import deque
 import time
 
 from os.path import dirname
-# add the current directory mannually 
-sys.path.append('.')
+sys.path.append('/home/yunlong/Dropbox/First_Principle_Calculations/codes/fortran2julia/')
 
 import Utinity as UT
 import ParseLit as PL
@@ -430,6 +429,10 @@ def sixth_run(res, fname, allo_json_fn, allo_log_fn, func_log_fn, modu_log_fn):
                 lines[i] = FJ.write_Ndeclare(l0, FJ.Ndeclare_who(L1))
             elif FJ.is_DIRECT_public_export(L1):
                 lines[i] = FJ.write_export(l0)
+            elif FJ.is_contain_save(L1):
+                pass  # TODO
+            elif FJ.is_bare_declare(L1):
+                lines[i] = FJ.write_bare_declare(l0)
             else:
                 pass
 
