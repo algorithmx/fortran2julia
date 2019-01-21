@@ -4,7 +4,7 @@
 
 from os.path import dirname
 import sys
-sys.path.append('.')
+sys.path.append('/home/yunlong/Dropbox/First_Principle_Calculations/codes/fortran2julia/')
 
 # ---------------------------------------------------
 
@@ -19,7 +19,6 @@ import PatternCollection as PC
 import Utinity as UT
 import ParseFMT
 import ParseLit
-
 
 
 # ---------------------------------------------------
@@ -450,6 +449,10 @@ def unroll_fmt(s):
     return s0
 
 
+#NOTE
+#sss = "702 format('set xtics (',:20('"',A3,'" ',F8.5,','))"
+# colon ":" removed manually
+
 # ss = '2((4E16.8),1x) '
 # ss = '(1x,a9,10(1x,4x),(f10.4,1x)) '
 # parse_fmt(unroll_fmt(ss))
@@ -471,10 +474,15 @@ def update_format_lines(s0,format_lines):
     s = s0.split(m)[1].strip()
     if (re.search(r"[Ff][Oo][Rr][Mm][Aa][Tt]\s*\(",s) is not None) and s.endswith(")"):
         #sf = parse_fmt(s.replace("format","")) #BUG
-        sf = ParseFMT.parse_fmt(re.sub(r"[Ff][Oo][Rr][Mm][Aa][Tt]\s*",'',s))
+        #BUG previous version missed unroll_fmt
+        sf = ParseFMT.parse_fmt( unroll_fmt(re.sub(r"[Ff][Oo][Rr][Mm][Aa][Tt]\s*",'',s)) )
         format_lines[m] = sf
     #end #if
     return (format_lines,m)
+
+#NOTE
+#sss = "702 format('set xtics (',:20('"',A3,'" ',F8.5,','))"
+# colon ":" removed manually
 
 
 # ---------------------------------------------------
