@@ -85,34 +85,38 @@ def split_on_toplevel_comma(s0):
     pieces = []
     stack = deque()
     for i in range(len(s)):
-        if s[i]==',':
-            if level==0 and len(stack)==0 and (not inside_quote(s,i)):
-                pieces.append(s[prev_comma_pos+1:i])
-                prev_comma_pos = i
-            #end #if
-        elif i==len(s)-1:
+        if i==len(s)-1:
             pieces.append(s[prev_comma_pos+1:])
-        elif s[i]=='(':
-            stack.append('(')
-            level += 1
-        elif s[i]=='[':
-            stack.append('[')
-            level += 1
-        elif s[i]==')' and (not inside_quote(s,i)):
-            if stack[-1]=='(':
-                stack.pop()
-                level -= 1
+        elif (not inside_quote(s,i)):
+            if s[i]==',':
+                if level==0 and len(stack)==0:
+                    pieces.append(s[prev_comma_pos+1:i])
+                    prev_comma_pos = i
+                #end #if
+            elif s[i]=='(':
+                stack.append('(')
+                level += 1
+            elif s[i]=='[':
+                stack.append('[')
+                level += 1
+            elif s[i]==')':
+                if stack[-1]=='(':
+                    stack.pop()
+                    level -= 1
+                else:
+                    print("[---ERROR---]")
+                    print("split_on_toplevel_comma() : bracket ( ) mismatch !!!")
+                #end #if
+            elif s[i]==']':
+                if stack[-1]=='[':
+                    stack.pop()
+                    level -= 1
+                else:
+                    print("[---ERROR---]")
+                    print("split_on_toplevel_comma() : bracket [ ] mismatch !!!")
+                #end #if
             else:
-                print("[---ERROR---]")
-                print("split_on_toplevel_comma() : bracket ( ) mismatch !!!")
-            #end #if
-        elif s[i]==']' and (not inside_quote(s,i)):
-            if stack[-1]=='[':
-                stack.pop()
-                level -= 1
-            else:
-                print("[---ERROR---]")
-                print("split_on_toplevel_comma() : bracket [ ] mismatch !!!")
+                pass
             #end #if
         else:
             pass
