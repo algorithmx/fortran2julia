@@ -105,6 +105,11 @@ def commenting_out(s):
     if is_blah(s2, PC.if_allo_patt):
         return "#FORTRAN_CONTROL " + s2
 
+    # patch
+    #TODO
+    if re.search(r"end\s*type\s+\w+",s2) is not None:
+        return "#FORTRAN_CONTROL " + s2
+
     return s2
 
 
@@ -1131,6 +1136,16 @@ def is_allocate(s):
             and (not is_blah(s.lower(), PC.if_err_patt))
 
 
+def is_bare_declare(s):
+    for p in PC.var_types.keys():
+        if is_blah(s, p) and (not is_DIRECT_public_export(s)) and (not is_contain_save(s)):
+            return True
+        else:
+            pass
+
+    return False
+
+
 # lower:upper to specify both lower and upper bounds (i.e. lower ≤ expr ≤ upper)
 def is_iter(itr):
     return is_blah(itr, PC.iter_patt)
@@ -1269,28 +1284,74 @@ def process_Ndeclare(name, value, typ):
         return "@Ninit  " + (" ".join([name, typ, ParseLit.parse_number(value)]))
 
 
-def write_export(sraw):
+def prepare_write(sraw):
     if not is_julia_comment(sraw):
         print("[WARNING]  should have been commented out --> " + sraw)
+        return False, [None,None,None]
+
+    return True, unpack_FORTRAN_CONTROL(sraw)
+
+
+def write_bare_declare(sraw):
+    (status, [shead, L1, COMM]) = prepare_write(sraw)
+    if (not status):
+        print("[WARNING:write_bare_declare failed] " + sraw)
         return sraw
 
-    shead, L1, COMM = unpack_FORTRAN_CONTROL(sraw)
-    L1 = "".join(L1.split("::")[1:])
+    if (L1.startswith("use")):  #TODO #patch
+        return sraw
 
+    type0 = re.split(r"\:\:",L1)[0]
+    type_and_matched = [(PC.var_types[reg],reg.search(type0).group(0)) for reg in PC.var_types.keys() if reg.search(type0) is not None]
+    if len(type_and_matched) == 0:
+        print("[WARNING:write_bare_declare: unrecog] " + sraw)
+        return sraw
+
+    type, matched = type_and_matched[0]
+    if len(type0.replace(matched,'').strip()) > 0:
+        print("[WARNING:write_bare_declare: not private] " + sraw)
+        return sraw
+
+    vars = "".join(re.split(r"\:\:",L1)[1:])
+    var_list = [v.strip() for v in vars.split(',')]
+    var_list_no_init_value = [v for v in var_list if '=' not in v]
+    var_list_with_init_value = [v.split('=') for v in var_list if '=' in v]
+    if len(var_list_with_init_value) + len(var_list_no_init_value) != len(var_list):
+        print("[WARNING:write_bare_declare: variable list error] " + sraw)
+        return sraw
+
+    ret = ""
+
+    no_init_str = None
+    if len(var_list_no_init_value) > 0:
+        no_init_str = shead + "@declareNtimes " + type + " " + (" ".join( var_list_no_init_value )) + COMM
+        ret += no_init_str
+
+    init_str = None
+    if len(var_list_with_init_value) > 0:
+        var_list_with_init_value_string = [ "(" + pair[0] + "," + ParseLit.parse_number(pair[1]) + ")" \
+                                            for pair in var_list_with_init_value]
+        init_str = shead + "@NinitNtimes " + type + " " + (" ".join( var_list_with_init_value_string )) + COMM
+        ret += ("\n" + init_str) if (no_init_str is not None) else init_str
+
+    return ret
+
+
+def write_export(sraw):
+    (status, [shead, L1, COMM]) = prepare_write(sraw)
+    if not status: return sraw
+    L1 = "".join(L1.split("::")[1:])
     return shead + "export " + (", ".join( [v.strip() for v in L1.split(',')] )) + COMM
 
 
 def write_deallocate(sraw, WHO):
-    if not is_julia_comment(sraw):
-        print("[WARNING]  should have been commented out --> " + sraw)
-        return sraw
-    elif len(WHO)==0:
+    if len(WHO)==0:
         print("[WARNING]  nothing to deallocate --> " + sraw)
         return sraw
-
+    (status, [shead, L1, COMM]) = prepare_write(sraw)
+    if not status: return sraw
     output_lines = []
     is_oneline_if = False
-    shead, L1, COMM = unpack_FORTRAN_CONTROL(sraw)
 
     if L1.startswith("if") and L1.endswith("end"):
         is_oneline_if = True
@@ -1311,16 +1372,13 @@ def write_deallocate(sraw, WHO):
 
 
 def write_allocate(sraw, WHO, all_allo_dict, FN):
-    if not is_julia_comment(sraw):
-        #print("[WARNING]  should have been commented out --> " + sraw)
+    if len(WHO)==0:
+        print("[WARNING]  nothing to allocate --> " + sraw)
         return sraw
-    elif len(WHO)==0:
-        #print("[WARNING]  nothing to allocate --> " + sraw)
-        return sraw
-
+    (status, [shead, L1, COMM]) = prepare_write(sraw)
+    if not status: return sraw
     output_lines = []
     is_oneline_if = False
-    shead, L1, COMM = unpack_FORTRAN_CONTROL(sraw)
 
     if L1.startswith("if") and L1.endswith("end"):
         is_oneline_if = True
@@ -1354,16 +1412,13 @@ def write_allocate(sraw, WHO, all_allo_dict, FN):
 
 
 def write_declare(sraw, WHO, allo_dict):
-    if not is_julia_comment(sraw):
-        #print("[WARNING]  should have been commented out --> " + sraw)
+    if len(WHO)==0:
+        print("[WARNING]  nothing to declare --> " + sraw)
         return sraw
-    elif len(WHO)==0:
-        #print("[WARNING]  nothing to declare --> " + sraw)
-        return sraw
-
+    (status, [shead, L1, COMM]) = prepare_write(sraw)
+    if not status: return sraw
     public_vars = []
     output_lines = []
-    shead, L1, COMM = unpack_FORTRAN_CONTROL(sraw)
 
     for (name, typ, naxes, is_save, is_pub) in WHO:
         output_lines.append( shead + process_declare(name, typ, naxes) +"  "+ COMM)
@@ -1379,15 +1434,13 @@ def write_declare(sraw, WHO, allo_dict):
 
 
 def write_Ndeclare(sraw, WHO):
-    if not is_julia_comment(sraw):
-        #print("[WARNING]  should have been commented out --> " + sraw)
+    if len(WHO)==0:
+        print("[WARNING]  nothing to declare --> " + sraw)
         return sraw
-    elif len(WHO)==0:
-        #print("[WARNING]  nothing to declare --> " + sraw)
-        return sraw
+    (status, [shead, L1, COMM]) = prepare_write(sraw)
+    if not status: return sraw
     output_lines = []
     PV = []
-    shead, L1, COMM = unpack_FORTRAN_CONTROL(sraw)
     for (name_value, typ, is_save, is_pub) in WHO:
         name, value = name_value
         if is_pub:
@@ -1433,38 +1486,3 @@ def where_is_the_line(i, fdic, mdic):
 
     return ret_m, ret_f
 
-
-
-
-'''
-def correct_io_error(s):
-    if (is_julia_comment(s) or is_fortran_comment(s)):
-        return s
-
-    m = [str(x.group(0)) for x in PC.io_error_patt_simple.finditer(s)]
-
-    if len(m) == 0:
-        return s
-    else:
-        assert m[0] in s
-        sl, sr = s.split(m[0])
-        srX, srCOMM = separate_julia_comments(sr)
-        if srX.strip().endswith(')'):
-            params = UT.split_on_toplevel_comma(srX.strip()[:-1])
-            srX = ", ".join( [replace_string_concat_simple(p) for p in params] )
-            ret = sl + "io_error( " + srX + " )  " + srCOMM
-            return ret
-        elif srX.strip().endswith('end'):
-            srX1 = srX.strip()[:-3]
-            if srX1.strip().endswith(')'):
-                params = UT.split_on_toplevel_comma(srX1.strip()[:-1])
-                srX1 = ", ".join( [replace_string_concat_simple(p) for p in params] )
-                ret = sl + "io_error( " + srX1 + " )  end " + srCOMM
-                return ret
-            else:
-                return s
-
-        else:
-            return s  # failed
-
-'''
