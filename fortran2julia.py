@@ -4,7 +4,7 @@
 
 from os.path import dirname
 import sys
-sys.path.append('/home/yunlong/Dropbox/First_Principle_Calculations/codes/fortran2julia/')
+sys.path.append('/home/dabajabaza/Dropbox/First_Principle_Calculations/codes/fortran2julia/')
 
 # ---------------------------------------------------
 
@@ -14,7 +14,7 @@ import json
 from collections import deque
 
 # you should verify "md5sum PatternCollection.py" and get exactly the following
-# e6a4e246470cdeabb17313b2926b8812  PatternCollection.py
+# 9befe88e2126444528e3b52611f334db  PatternCollection.py
 import PatternCollection as PC
 import Utinity as UT
 import ParseFMT
@@ -33,19 +33,23 @@ def is_blah(s, blah):
 
 
 def APPLY_RULES(S,RULE):
-    S2 = S[:]
-    for rf,rj in RULE:
-        S2 = S2.replace(rf,rj)
+    L = UT.split_quote(S)
+    for i in range(0,len(L),2):
+        for rf,rj in RULE:
+            L[i] = L[i].replace(rf,rj)
+        #end #for
     #end #for
-    return S2
+    return UT.combine_quote_list(L)
 
 
 def SUB_RULES(S,RULE):
-    S2 = S[:]
-    for rf,rj in RULE:
-        S2 = re.sub(rf,rj,S2)
+    L = UT.split_quote(S)
+    for i in range(0,len(L),2):
+        for rf,rj in RULE:
+            L[i] = re.sub(rf,rj,L[i])
+        #end #for
     #end #for
-    return S2
+    return UT.combine_quote_list(L)
 
 
 # ---------------------------------------------------
@@ -83,10 +87,8 @@ def correct_tail_fortran_comments(s):
         return s
     else:
         p = separate_fortran_comments(s)
-        if len(p)==2:
-            return p[0] + ((" #" + p[1]) if len((p[1].strip()))>0 else '')
-        else:
-            return s
+        assert len(p)==2
+        return p[0] + ((" #" + p[1]) if len((p[1].strip()))>0 else '')
 
 
 def commenting_out(s):
@@ -105,12 +107,11 @@ def commenting_out(s):
     if is_blah(s2, PC.if_allo_patt):
         return "#FORTRAN_CONTROL " + s2
 
-    # patch
-    #TODO
-    if re.search(r"end\s*type\s+\w+",s2) is not None:
-        return "#FORTRAN_CONTROL " + s2
-
     return s2
+
+
+def remove_FORTRAN_CONTROL_label(s):
+    return s.replace("#FORTRAN_CONTROL ","")
 
 
 def is_FORTRAN_CONTROL(s):
@@ -191,10 +192,10 @@ def correct_function_calls(s):
                     ret = sl + " " + function_head + "( " + srX1 + " )  end " + srCOMM
                     return ret
                 else:
-                    print("[WARNING:CORRECT_FUNC_NAME]  " + s)
+                    #print("[WARNING:CALL(1)]  " + s)
                     return s
             else:
-                print("[WARNING:CORRECT_FUNC_NAME]  " + s)
+                #print("[WARNING:CALL(2)]  " + s)
                 return s  # failed
             #end #if
         #end #if
@@ -202,23 +203,26 @@ def correct_function_calls(s):
         assert len(m) == 0
         assert len(m0) == 1
         assert m0[0] in s
-        function_head = m0[0].strip()[4:].strip()
-        sl, sr = s.split(m0[0])
-        srX, srCOMM = separate_julia_comments(sr)
+        function_head = m0[0].strip()[4:].strip()  # 'call' removed
+        sl, sr = s.split(m0[0])  # two sides
+        srX, srCOMM = separate_julia_comments(sr)  # RHS
         if srX.strip().endswith('end'):
             srX1 = srX.strip()[:-3]
             if len(srX1.strip()) > 0:
-                print("[WARNING:CORRECT_FUNC_NAME]  " + s)
+                #print("[WARNING:CALL(3)]  " + s)
                 return s
             else:
                 ret = sl + " " + function_head + "()  end " + srCOMM
                 return ret
+        elif len(srX.strip()) == 0:
+            ret = sl + " " + function_head + "() " + srCOMM
+            return ret
         else:
-            print("[WARNING:CORRECT_FUNC_NAME]  " + s)
+            print("[WARNING:CALL(4)]  " + s)
             return s  # failed
         #end #if
     else:
-        print("[WARNING:CORRECT_FUNC_NAME]  " + s)
+        #print("[WARNING:CALL(5)]  " + s)
         return s
     #end #if
 
@@ -466,21 +470,25 @@ def unroll_fmt(s):
 
 
 def translate_fmt(s):
-    return ParseFMT.parse_fmt(unroll_fmt(s.strip().strip("\'").strip()))
+    return ParseFMT.parse_fmt(unroll_fmt(s.strip(' "\'')))
 
 
 def is_format_line(s0):
-    return is_blah(s0.strip('& '), PC.fmt_line_header_patt)
+    #return is_blah(s0.strip('& '), PC.fmt_line_header_patt)
+    return is_blah(s0, PC.fmt_line_header_patt)
 
 
 def update_format_lines(s0,format_lines):
     s = s0.strip()
-    m = re.findall(r"\d{2}\d+",s)[0]
-    s = s0.split(m)[1].strip()
-    if (re.search(r"[Ff][Oo][Rr][Mm][Aa][Tt]\s*\(",s) is not None) and s.endswith(")"):
+    m = re.findall(r"\d{3,5}",s)[0]
+    s, comm = separate_julia_comments(s0.split(m)[1].strip())
+    s = s.strip()
+    if (re.search(r"format\s*\(",s) is not None) and s.endswith(")"):
         #sf = parse_fmt(s.replace("format","")) #BUG
         #BUG previous version missed unroll_fmt
-        sf = ParseFMT.parse_fmt( unroll_fmt(re.sub(r"[Ff][Oo][Rr][Mm][Aa][Tt]\s*",'',s)) )
+        # [Ff][Oo][Rr][Mm][Aa][Tt]
+        unroll = unroll_fmt(re.sub(r"format\s*",'',s))
+        sf = ParseFMT.parse_fmt( unroll )
         format_lines[m] = sf
     #end #if
     return (format_lines,m)
@@ -684,7 +692,13 @@ def is_multi_line(s0):
 
 def replace_string_concat(x):  # used exclusively in write()
     special_ch = [(r"\$",'\\$'), (r"\\",'\\\\'), (r"\"",'\\\"')]  # DO NOT TOUCH, otherwise see you in HELL
-    pieces = x.split("//")  # //
+    x_non = UT.non_quote(x)
+    pieces = []
+    if "//" not in x_non:
+        pieces = [x]
+    else:
+        pieces = x.split("//")  # //
+
     combined = []
     for y in pieces:
         s = y.strip()
@@ -737,91 +751,12 @@ def fortran_write_julia(s0,fmt_dict):
     s = line_plus_comm[0]
     shead = s0.split("write")[0]
 
-    search1 = PC.write_patt_adv.finditer(s)
-    search2 = PC.write_patt_no_adv.finditer(s)
-    search3n = PC.write_three_number_patt.finditer(s)
-    search3no = PC.write_three_number_patt_no_adv.finditer(s)
-    searchst = PC.write_star_patt.finditer(s)
-    searchsto = PC.write_star_out_patt.finditer(s)
-    searcha = PC.write_a_patt.finditer(s)
-    searchnofmt = PC.write_no_fmt_patt.finditer(s)
-    search_fmt = PC.write_FMT_patt_adv.finditer(s)
+    # ----------------------------------------------
+    search_3n_patt_no_adv = PC.write_three_number_patt_no_adv.finditer(s)
+    search_patt_no_adv = PC.write_patt_no_adv.finditer(s)
 
-    for x in searchnofmt:
-        write_bracket = x.group(0)
-        out_name0 = re.sub(r"\s*write\s*\(\s*",'',write_bracket.strip())
-        out_name = out_name0.strip(' )')
-        res = shead + "@printf  " + out_name + "  \"%s\\n\"" +\
-                    "  " + process_literal_star(s.replace(write_bracket,' '),bracketing=True) +\
-                    line_plus_comm[1]
-        return res
-
-    for x in searcha:
-        write_bracket = x.group(0)
-        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
-        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
-        fmt_fortran = write_bracket.split(out_name)[1].strip(" ,)").strip(" ,)")
-        assert ('a' in fmt_fortran) or ('A' in fmt_fortran)
-        res = shead + "@printf  " + out_name + "  \"%s\\n\"" +\
-                    "  " + process_literal_star(s.replace(write_bracket,' ')) +\
-                    line_plus_comm[1]
-        return res
-
-    for x in search1:
-        write_bracket = x.group(0)
-        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
-        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
-        fmt_fortran = write_bracket.split(out_name)[1].strip(" ,)").strip(" ,)")
-        fmt_julia = '\"' + translate_fmt(fmt_fortran) + '\\n\"'
-        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
-                    "  " + process_literals(s.replace(write_bracket,' ')) +\
-                    line_plus_comm[1]
-        return res
-
-    for x in searchsto:
-        write_bracket = x.group(0)
-        out_name = ''
-        fmt_fortran = write_bracket.split('*')[1].strip(' ,)')
-        fmt_julia = '\"' + translate_fmt(fmt_fortran) + '\\n\"'
-        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
-                    "  " + process_literals(s.replace(write_bracket,' ')) +\
-                    line_plus_comm[1]
-        return res
-
-    for x in search_fmt:
-        write_bracket = re.sub(r"[Ff][Mm][Tt]\s*\=", '', x.group(0))
-        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
-        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
-        fmt_fortran = write_bracket.split(out_name)[1].strip(" ,)").strip(" ,)")
-        fmt_julia = '\"' + translate_fmt(fmt_fortran) + '\\n\"'
-        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
-                    "  " + process_literals(s.replace(write_bracket,' ')) +\
-                    line_plus_comm[1]
-        return res
-
-    for x in search2:
-        write_bracket = x.group(0)
-        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
-        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
-        fmt_fortran = write_bracket.split(out_name)[1].split('advance')[0].strip(" ,)").strip(" ,)")
-        fmt_julia = '\"' + translate_fmt(fmt_fortran) + '\"'
-        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
-                    "  " + process_literals(s.replace(write_bracket,' ')) +\
-                    line_plus_comm[1]
-        return res
-
-    for x in search3n:
-        write_bracket = x.group(0)
-        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
-        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
-        fmt_fortran = write_bracket.split(out_name)[1].strip(" ,)").strip(" ,)")
-        fmt_julia = '\"'+fmt_dict[fmt_fortran]+'\\n\"'
-        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
-                    "  " + process_literals(s.replace(write_bracket,' ')) +\
-                    line_plus_comm[1]
-        return res
-
-    for x in search3no:
+    for x in search_3n_patt_no_adv:
+        #print("search_3n_patt_no_adv")
         write_bracket = x.group(0)
         out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
         out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
@@ -832,7 +767,34 @@ def fortran_write_julia(s0,fmt_dict):
                     line_plus_comm[1]
         return res
 
-    for x in searchst:
+    for x in search_patt_no_adv:
+        #print("search_patt_no_adv")
+        write_bracket = x.group(0)
+        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
+        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
+        fmt_fortran = write_bracket.split(out_name)[1].split('advance')[0].strip(" ,)").strip(" ,)")
+        fmt_julia = '\"' + translate_fmt(fmt_fortran) + '\"'
+        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
+                    "  " + process_literals(s.replace(write_bracket,' ')) +\
+                    line_plus_comm[1]
+        return res
+
+    # ----------------------------------------------
+    search_star_patt = PC.write_star_patt.finditer(s)
+    search_star_out_patt = PC.write_star_out_patt.finditer(s)
+    for x in search_star_out_patt:
+        #print("search_star_out_patt")
+        write_bracket = x.group(0)
+        out_name = ''
+        fmt_fortran = write_bracket.split('*')[1].strip(' ,)')
+        fmt_julia = '\"' + translate_fmt(fmt_fortran) + '\\n\"'
+        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
+                    "  " + process_literals(s.replace(write_bracket,' ')) +\
+                    line_plus_comm[1]
+        return res
+
+    for x in search_star_patt:
+        #print("search_star_patt")
         write_bracket = x.group(0)
         out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
         out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
@@ -842,6 +804,77 @@ def fortran_write_julia(s0,fmt_dict):
                         "  " + process_literal_star(s.replace(write_bracket,' ')) +\
                         line_plus_comm[1]
         return res
+
+    # ----------------------------------------------
+    searcha = PC.write_a_patt.finditer(s)
+    for x in searcha:
+        #print("searcha")
+        write_bracket = x.group(0)
+        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
+        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
+        fmt_fortran = write_bracket.split(out_name)[1].strip(" ,)").strip(" ,)")
+        assert ('a' in fmt_fortran) or ('A' in fmt_fortran)
+        res = shead + "@printf  " + out_name + "  \"%s\\n\"" +\
+                    "  " + process_literal_star(s.replace(write_bracket,' ')) +\
+                    line_plus_comm[1]
+        return res
+
+    # ----------------------------------------------
+    search3n = PC.write_three_number_patt.finditer(s)
+    for x in search3n:
+        #print("search3n")
+        write_bracket = x.group(0)
+        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
+        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
+        fmt_fortran = write_bracket.split(out_name)[1].strip(" ,)").strip(" ,)")
+        fmt_julia = '\"'+fmt_dict[fmt_fortran]+'\\n\"'
+        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
+                    "  " + process_literals(s.replace(write_bracket,' ')) +\
+                    line_plus_comm[1]
+        return res
+
+    # ----------------------------------------------
+    searchnofmt = PC.write_no_fmt_patt.finditer(s)
+    search_fmt = PC.write_FMT_patt_adv.finditer(s)
+
+    for x in searchnofmt:
+        #print("searchnofmt")
+        write_bracket = x.group(0)
+        out_name0 = re.sub(r"\s*write\s*\(\s*",'',write_bracket.strip())
+        out_name = out_name0.strip(' )')
+        res = shead + "@printf  " + out_name + "  \"%s\\n\"" +\
+                    "  " + process_literal_star(s.replace(write_bracket,' '),bracketing=True) +\
+                    line_plus_comm[1]
+        return res
+
+    for x in search_fmt:
+        #print("search_fmt")
+        write_bracket = re.sub(r"[Ff][Mm][Tt]\s*\=", '', x.group(0))
+        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
+        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
+        fmt_fortran = write_bracket.split(out_name)[1].strip(" ,)").strip(" ,)")
+        fmt_julia = '\"' + translate_fmt(fmt_fortran) + '\\n\"'
+        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
+                    "  " + process_literals(s.replace(write_bracket,' ')) +\
+                    line_plus_comm[1]
+        return res
+
+    # ----------------------------------------------
+    search1 = PC.write_patt_adv.finditer(s)
+    for x in search1:
+        #print("search1")
+        write_bracket = x.group(0)
+        out_name0 = str(PC.write_head_firstarg_patt.match(write_bracket).group(0))
+        out_name = re.sub(r"\s*write\s*\(\s*",'',out_name0.strip(" ,"))
+        fmt_fortran = write_bracket.split(out_name)[1].strip(" ,)").strip(" ,)")
+        if ("//" in fmt_fortran) and ("strip" in fmt_fortran):
+            break
+        fmt_julia = '\"' + translate_fmt(fmt_fortran) + '\\n\"'
+        res = shead + "@printf  " + out_name + "  " + fmt_julia +\
+                    "  " + process_literals(s.replace(write_bracket,' ')) +\
+                    line_plus_comm[1]
+        return res
+    # ----------------------------------------------
 
     print("[FAIL:fortran_write_julia()]\n[FAIL]  " + s0)
     return s0
@@ -854,10 +887,9 @@ def fortran_write_julia(s0,fmt_dict):
 #print(fortran_write_julia(sss,{}))
 
 
-
 # ---------------------------------------------------
 #
-# xxx
+# deal with function names
 #
 # ---------------------------------------------------
 
@@ -870,14 +902,14 @@ def is_func(s):
     if is_julia_comment(s) or ('"' in s) or ("'" in s) or is_end_func(s):
         return False
     else:
-        return is_blah(s, PC.func_patt)
+        return is_blah(s.split('#',1)[0], PC.func_patt)
 
 
 def get_func_name(s):
     if is_func(s):
-        parts = s.strip().split("function ")
-        if (len(parts)>2) and any(('#' in k) for k in parts[1:]):
-            part2,comm = separate_julia_comments( ("".join(parts[1:])).strip() )
+        parts = s.strip().split("function ",1)  # "s,s,s".split(',',1)
+        #if (len(parts)>2) and any(('#' in k) for k in parts[1:]):
+        #    part2,comm = separate_julia_comments( ("".join(parts[1:])).strip() )
         part2, comm = separate_julia_comments( parts[1].strip() )
         if ('(' in part2) and (')' in part2):
             return (part2.split('(')[0].strip())
@@ -887,9 +919,12 @@ def get_func_name(s):
             return part2.strip()
         #end #if
     elif is_end_func(s):
-        parts = s.strip().split("function ")
-        assert ('#' in parts[0]) and (len(parts)==2)
-        return parts[1].strip()
+        parts = PC.end_func_patt.split(s)
+        if (len(parts)==2):
+            ## BUIG return  parts[1].strip()
+            return separate_julia_comments( parts[1].strip() )[0].strip()
+        else:
+            return ''
     else:
         return ''
     #end #if
@@ -906,12 +941,12 @@ def correct_func_name(s,FUNCS):
     if is_func(s):
         fn = get_func_name(s)
         if len(fn)>0:
-            parts = s.split(fn)
-            if not parts[1].strip().startswith('('):
-                return parts[0]+fn+"() "+("".join(parts[1:]))
-            else:
-                return parts[0] + fn + (parts[1].strip()) + " " + ("".join(parts[2:]))
-            #end #if
+            ss,comm = separate_julia_comments(s)
+            p = ss.strip().split("function ")
+            p0 = p[0]
+            parts = ("function ".join(p[1:])).split(fn)
+            STR = "() " if not (parts[1].strip().startswith('(')) else ""
+            return p0 + "function " + parts[0] + fn + STR + (fn.join(parts[1:])) + comm
         else:
             return s
         #end #if
@@ -1066,7 +1101,7 @@ def correct_array_brackets(s, ARRN, FUNCS):
 
 # ---------------------------------------------------
 #
-# detect modules
+# detect modules, programs
 #
 # ---------------------------------------------------
 
@@ -1086,7 +1121,25 @@ def is_module(s):
 
 
 def get_module_name(s):
-    return s.split("module")[1].strip()
+    return PC.module_patt.search(s).group(0).replace('module','').strip()
+
+
+def is_end_program(s):
+    if not is_FORTRAN_CONTROL(s):
+        return False
+    else:
+        return is_blah(s, PC.end_program_patt)
+
+
+def is_program(s):
+    if not is_FORTRAN_CONTROL(s):
+        return False
+    else:
+        return (is_blah(s, PC.program_patt) and (not is_end_program(s)))
+
+
+def get_program_name(s):
+    return PC.program_patt.search(s).group(0).replace('program','').strip()
 
 
 # ---------------------------------------------------
@@ -1094,6 +1147,13 @@ def get_module_name(s):
 # declare, allocate, deallocate
 #
 # ---------------------------------------------------
+
+def is_use(s):
+    return s.strip().startswith('use ')
+
+
+def is_contain_parameter(s):
+    return ('parameter' in s.split("::",1)[0])
 
 
 def is_public(s,vn):
@@ -1157,7 +1217,7 @@ def len_iter(itr0):
 
 
 def find_allocatable(s):
-    if PC.allocatable_patt.search(s) is not None:
+    if is_blah(s,PC.allocatable_patt):
         is_sav0 = ("save" in s)
         is_pub0 = ("public" in s)
         XXX = s.strip().split("::")
@@ -1183,6 +1243,7 @@ def find_allocatable(s):
         SAV = [is_sav0 for x in Var_list]
         PUB = [is_pub0 for x in Var_list]
         # name, typ, naxes, is_save, is_pub
+        #print(list(zip(Var_list,Type_list,Naxes_list, SAV, PUB)))
         return list(zip(Var_list,Type_list,Naxes_list, SAV, PUB))
     else:
         return []
@@ -1309,7 +1370,9 @@ def write_bare_declare(sraw):
 
     type, matched = type_and_matched[0]
     if len(type0.replace(matched,'').strip()) > 0:
-        print("[WARNING:write_bare_declare: not private] " + sraw)
+        if 'intent' not in sraw:
+            print("[WARNING:write_bare_declare: not private] " + sraw)
+
         return sraw
 
     vars = "".join(re.split(r"\:\:",L1)[1:])
@@ -1411,7 +1474,7 @@ def write_allocate(sraw, WHO, all_allo_dict, FN):
     return ret
 
 
-def write_declare(sraw, WHO, allo_dict):
+def write_declare(sraw, WHO, allo_dict, is_inside_func=False):
     if len(WHO)==0:
         print("[WARNING]  nothing to declare --> " + sraw)
         return sraw
@@ -1425,7 +1488,13 @@ def write_declare(sraw, WHO, allo_dict):
         if is_pub:
             public_vars.append(name)
         if is_save:
-            pass  #TODO what does save mean in fortran ?
+            # http://www.fortran.com/fortran/books/t90_82.html
+            # https://stackoverflow.com/questions/2893097/fortran-save-statement
+            if is_inside_func:
+                print( "[WARNING:SAVE] save a variable inside a function \"" + name + "\"" )
+                print( "[WARNING:SAVE] " + sraw )
+                # seems that the above warning is never triggered
+            #TODO what does save mean in fortran ?
 
     pub_line = "" if len(public_vars)==0 else (shead + "export  " + ", ".join(public_vars) +"  "+ COMM + "\n")
     ret = pub_line + ("\n".join(output_lines))
