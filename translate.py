@@ -15,7 +15,7 @@ import fortran2julia as FJ
 
 def first_run(fn):
 
-    if os.path.isfile(fn) and ('.F90' in fn):
+    if os.path.isfile(fn) and (('.F90' in fn) or ('.f90' in fn)):
         with open(fn) as f:
             lines_fortran = f.readlines()
 
@@ -40,16 +40,32 @@ def first_run(fn):
             elif FJ.is_fortran_comment(l):
                 lines_julia.append(FJ.process_fortran_comments(l))
                 continue
-            elif l.endswith('&'):
-                l = l.rstrip(' &')
-                while i < len(lines_fortran):
-                    l2 = lines_fortran[i].strip().lower()
-                    i += 1
-                    l += ' ' + l2.strip('& ')
-                    if l2[-1] != '&':
-                        break
-                #end #while
-            #end #if
+            else:
+                comms = []
+                ll, comm = FJ.separate_fortran_comments(l)
+                ll = ll.strip()
+                comm = comm.strip(' !')
+                if len(comm) > 0:
+                    comms.append(comm)
+                if ll.endswith('&'):
+                    l = ll.rstrip(' &')
+                    while i < len(lines_fortran):
+                        l2 = lines_fortran[i].strip().lower()
+                        i += 1
+                        ll2, comm2 = FJ.separate_fortran_comments(l2)
+                        ll2 = ll2.strip()
+                        comm2 = comm2.strip(' !')
+                        if len(comm2) > 0:
+                            comms.append(comm2)
+
+                        l += ' ' + ll2.strip('& ')
+                        if (len(ll2.strip('& ')) == 0):
+                            continue
+                        elif (ll2[-1] != '&'):
+                            break
+                    #end #while
+                #end #if
+                #l = l + ' ! ' + (" # ".join(comms))
 
             l = FJ.correct_tail_fortran_comments(l)
 
@@ -121,10 +137,13 @@ def second_run(res1):
     fmt_lines = {}
     for i,l0 in enumerate(lines):
         if FJ.is_format_line(l0):
-            (fmt_lines,m) = FJ.update_format_lines(l0,fmt_lines)
+            tmp = FJ.update_format_lines(l0,fmt_lines)
+            fmt_lines = tmp[0]
+            m = tmp[1]
             lines[i] = l0.replace(m, "#" + m, 1)
         #end #if
     #end #for
+    print("[INFO:FMT_2nd] " + str(fmt_lines))
 
     line_inden_level = 0
     func_names = []
@@ -289,7 +308,7 @@ def fourth_run(res3):
 #NOTE lines are NOT altered
 def fifth_run(res, fname, allo_lines_fn, allo_json_fn, allo_log_fn, func_log_fn, modu_log_fn, pubv_log_fn):
 
-    FN = fname.replace('.F90', '')
+    FN = fname.replace('.F90', '') if ('.F90' in fname) else fname.replace('.f90', '')
     lines = [x for x in res.split("\n") if len(x)>0]
     allocatables_FN = {}
     allocates_FN = {}
@@ -297,8 +316,10 @@ def fifth_run(res, fname, allo_lines_fn, allo_json_fn, allo_log_fn, func_log_fn,
     pub_vars_FN = {}
 
     modus = {FJ.get_module_name(l):(i, -1) for (i, l) in enumerate(lines) \
-                            if FJ.is_module(l.strip())}
-
+                                            if FJ.is_module(l.strip()) }
+    for (i,l) in enumerate(lines):
+        if FJ.is_program(l.strip()):
+            modus[FJ.get_program_name(l)] = (i, -1)
 
     if len(modus)>0:
         for (i,l) in enumerate(lines):
@@ -306,7 +327,11 @@ def fifth_run(res, fname, allo_lines_fn, allo_json_fn, allo_log_fn, func_log_fn,
                 n = FJ.get_module_name(l)
                 b,e = modus[n]
                 modus[n] = (b,i)
-            #end
+            elif FJ.is_end_program(l):
+                n = FJ.get_program_name(l)
+                b,e = modus[n]
+                modus[n] = (b,i)
+            #end #if
         #end #for
         modus[FN+"_outside_all_modules"] = (-1,-1)
     else:
@@ -318,9 +343,19 @@ def fifth_run(res, fname, allo_lines_fn, allo_json_fn, allo_log_fn, func_log_fn,
         for (i,l) in enumerate(lines):
             if FJ.is_end_func(l):  # not commented out
                 n = FJ.get_func_name(l)
-                b,e = funcs[n]
-                funcs[n] = (b,i)
-            #end
+                if len(n)>0:
+                    b,e = funcs[n]
+                    funcs[n] = (b,i)
+                else:
+                    for j in range(i-1,-1,-1):
+                        if FJ.is_func(lines[j]):
+                            n = FJ.get_func_name(lines[j])
+                            b,e = funcs[n]
+                            assert b==j
+                            funcs[n] = (b,i)
+                            break
+                    #end #for
+                #end #if
         #end #for
     else:
         funcs[FN+"_no_function"] = (-1,-1)
@@ -381,7 +416,7 @@ def fifth_run(res, fname, allo_lines_fn, allo_json_fn, allo_log_fn, func_log_fn,
 
 
 def sixth_run(res, fname, allo_json_fn, allo_log_fn, func_log_fn, modu_log_fn):
-    FN = fname.replace('.F90', '')
+    FN = fname.replace('.F90', '') if ('.F90' in fname) else fname.replace('.f90', '')
 
     with open(allo_json_fn,'r') as h:
         read_data = h.read()
@@ -407,33 +442,56 @@ def sixth_run(res, fname, allo_json_fn, allo_log_fn, func_log_fn, modu_log_fn):
             L1, COMM = FJ.separate_julia_comments(L[1])
             L1 = L1.lower().strip()
             if 'allocatable' in L1:
+                # already consider "public" discriptor
                 AL = FJ.find_allocatable(L1)
                 if len(AL) > 0:
+                    is_in_f = False
                     mod_n, func_n = FJ.where_is_the_line(i, funcs, modus)
                     # the scope of an allocatable declaration should ALWAYS be inside a module
                     if (func_n is None):  # inside module but outside a function
-                        #print( "[INFO:DECLARE_OUTSIDE] in file  \"" + FN + "\"" )
-                        pass
+                        is_in_f = False
                     elif ("_no_function" in func_n):
-                        print( "[WARNING] there is no function in the file \"" + FN + "\"" )
+                        print( "[WARNING:DECLARE] there is no function in the file \"" + FN + "\"" )
+                        is_in_f = False
                     else:
-                         # inside a function
-                         pass
+                        # inside a function
+                        is_in_f = True
 
-                    lines[i] = FJ.write_declare(l0, AL, allo_FN)
+                    lines[i] = FJ.write_declare(l0, AL, allo_FN, is_inside_func=is_in_f)
+            # understand the type of declarations, if it is not "allocatable"
             elif FJ.is_allocate(L1):
+                # allocate(eigval_opt(num_bands,num_kpts),stat=ierr)
                 lines[i] = FJ.write_allocate(l0, FJ.allocate_who(L1), allocatables, FN)
             elif FJ.is_deallocate(L1):
+                # deallocate(eigval_opt,stat=ierr)
                 lines[i] = FJ.write_deallocate(l0, FJ.deallocate_who(L1))
             elif FJ.is_public_export(L1) and FJ.is_contain_save(L1):
+                # do not contain 'allocatable' but contain both 'public' and 'save'
                 lines[i] = FJ.write_Ndeclare(l0, FJ.Ndeclare_who(L1))
             elif FJ.is_DIRECT_public_export(L1):
+                # something like "public :: ..."
                 lines[i] = FJ.write_export(l0)
             elif FJ.is_contain_save(L1):
+                # http://www.fortran.com/fortran/books/t90_82.html
+                # https://stackoverflow.com/questions/2893097/fortran-save-statement
                 pass  # TODO
             elif FJ.is_bare_declare(L1):
+                # if is a declare but not is_DIRECT_public_export and not contain save
+                # example:
                 lines[i] = FJ.write_bare_declare(l0)
-            else:
+            elif FJ.is_use(L1):
                 pass
+            elif FJ.is_contain_parameter(L1):
+                pass
+            else:
+                if ('io_error' not in L1) and \
+                   ('implicit none' not in L1) and \
+                   ('contains' not in L1) and \
+                   ('module' not in L1):
+                    print("[INFO:DECLARE] UNPROCESSED : " + L1)
+
+    for i, l in enumerate(lines):
+        if FJ.is_module(l) or FJ.is_end_module(l):
+            lines[i] = FJ.remove_FORTRAN_CONTROL_label(l)
 
     return "\n".join(lines)
