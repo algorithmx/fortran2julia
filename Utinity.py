@@ -78,6 +78,30 @@ def non_quote(s0):
 #non_quote(sss)
 
 
+def split_quote_core(s0,Q):
+    found = False
+    for q in Q:
+        if q in s0:
+            found = True
+            ll = s0.split(q,1)
+            return split_quote_core(ll[0],Q) + [q] + split_quote_core(ll[1],Q)
+        else:
+            continue
+
+    if not found:
+        return [s0]
+
+
+def split_quote(s0):
+    s = s0[:]
+    Qts = [str(x.group(0)) for x in QUO.finditer(s)]
+    return split_quote_core(s0,Qts)
+
+
+def combine_quote_list(lst):
+    return "".join(lst)
+
+
 def split_on_toplevel_comma(s0):
     s = s0.strip()
     level = 0
@@ -129,6 +153,29 @@ def split_on_toplevel_comma(s0):
 #sss = "'#    components of the TDF for the spin up, followed by those for the spin down) '"
 #rint( split_on_toplevel_comma(sss) )
 
+
+
+def split_on_slash(ss):
+    cl,cr = 0,0
+    for i in range(0,len(ss)):
+        if ss[i] == '/':
+            cl += 1
+            continue
+        else:
+            break
+    if cl == len(ss):
+        return ['/'*cl, '', '']
+    else:
+        for i in range(len(ss)-1,-1,-1):
+            if ss[i] == '/':
+                cr += 1
+                continue
+            else:
+                break
+        if cr == 0:
+            return [ss[0:cl], ss[cl:], '']
+        else:
+            return [ss[0:cl], ss[cl:-cr], ss[-cr:]]
 
 
 
