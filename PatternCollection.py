@@ -60,7 +60,7 @@ endif_patt = re.compile(r"\#endif")
 
 end_func_patt = re.compile(r"end\s+\#function")
 
-func_patt = re.compile(r"function\s+\w")
+func_patt = re.compile(r"function\s+\w+")
 
 fmt_line_header_patt = re.compile(r"\d{3,5}\s+format\s*\(")
 
@@ -82,6 +82,7 @@ eq_rules = [ (r"\="," = "), (r"\s+\=\s+"," = ") ]
 
 control_rules = [ (r"end\s*do", "end #for"), (r"do\s+","for "),\
                 (r"then", " "), (r"if\s*\(\s*", "if ("), (r"end\s*if", "end #if"),\
+                (r"pure\s+function\s+", "function "),\
                 (r"end\s*subroutine", "end #function "), (r"subroutine\s+", "function "),\
                 (r"end\s*function", "end #function "), (r"goto\s+", "_GOTO_ "),\
                 (r"exit", "break"), (r"cycle", "continue") ]
@@ -97,6 +98,8 @@ comm_patt = [ re.compile(r"end\s+module"),\
               re.compile(r"implicit\s+\w+"),\
               re.compile(r"end\s+interface"),\
               re.compile(r"interface"),\
+              re.compile(r"end\s+program"),\
+              re.compile(r"program"),\
               re.compile(r"integer[^_]"),\
               re.compile(r"real[^_]"),\
               re.compile(r"complex[^_]"),\
@@ -106,6 +109,7 @@ comm_patt = [ re.compile(r"end\s+module"),\
               re.compile(r"public"),\
               re.compile(r"contains"),\
               re.compile(r"type[^_]"),\
+              re.compile(r"end\s*type\s+\w+"),\
               re.compile(r"if\s+\(\s*ierr\s*") ]
 
 
@@ -116,6 +120,8 @@ comm_list = [ "end",\
               "implicit",\
               "end",\
               "interface",\
+              "end",\
+              "program",\
               "integer",\
               "real",\
               "complex",\
@@ -125,6 +131,7 @@ comm_list = [ "end",\
               "public",\
               "contains",\
               "type",\
+              "end",\
               "if" ]
 
 comm_patt_select = [ re.compile(r"select\s+case"), re.compile(r"end\s+select"), re.compile(r"case") ]
@@ -158,15 +165,15 @@ array_colon_expr_patt = re.compile(r"\w+\((\:\s*\,\s*)*\:\s*\)")
 
 write_head_firstarg_patt = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,")
 
-write_patt_adv = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,\s*\'[a-zA-Z0-9\!\:\"\(\)\*\+\,\.\|\/\-\s]*\s*\'\s*\)")
+write_patt_adv = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,\s*([\"\'])((\\\\{2})*|(.*?[^\\](\\{2})*))\1\s*\)")
 
-write_FMT_patt_adv = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,\s*[Ff][Mm][Tt]\s*\=\s*\'[a-zA-Z0-9\!\:\"\(\)\*\+\,\.\|\/\-\s]*\s*\'\s*\)")
+write_FMT_patt_adv = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,\s*[Ff][Mm][Tt]\s*\=\s*([\"\'])((\\\\{2})*|(.*?[^\\](\\{2})*))\1\s*\)")
 
-write_patt_no_adv = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,\s*\'[a-zA-Z0-9\!\:\"\(\)\*\+\,\.\|\/\-\s]*\s*\'\s*\,\s*advance\s*\=\s*[\"\']no[\"\']\s*\)")
+write_patt_no_adv = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,\s*([\"\'])((\\\\{2})*|(.*?[^\\](\\{2})*))\1\s*\,\s*advance\s*\=\s*[\"\']no[\"\']\s*\)")
 
 write_star_patt = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,\s*\*\s*\)")
 
-write_star_out_patt = re.compile(r"write\s*\(\s*\*\s*\,\s*\'[a-zA-Z0-9\!\:\"\(\)\*\+\,\.\|\/\-\s]*\s*\'\s*\)")
+write_star_out_patt = re.compile(r"write\s*\(\s*\*\s*\,\s*([\"\'])((\\\\{2})*|(.*?[^\\](\\{2})*))\1\s*\)")
 
 write_three_number_patt = re.compile(r"write\s*\(\s*[\s\w\(\)]+\s*\,\s*\d{3,5}\s*\)")
 
@@ -192,7 +199,7 @@ int_type_patt = re.compile(r"integer")
 
 bool_type_patt = re.compile(r"logical")
 
-chars_type_patt = re.compile(r"character\s*\(\s*len\s*\=\s*\w+\s*\)")
+chars_type_patt = re.compile(r"character\s*\(\s*len\s*\=\s*\w+\s*(\(\s*\w+\s*\))?(\s*[\+\-\*]\s*\w+\s*(\(\s*\w+\s*\))?)*\s*\)")
 
 #chars_type_patt.search("    character( len = 60 )             :: header")
 
@@ -248,3 +255,7 @@ module_patt = re.compile(r"\s*module\s+\w+")
 module_procedure_patt = re.compile(r"\s*module\s+procedure\s+")
 
 end_module_patt = re.compile(r"\s*end\s+(\#)?\s*module\s+\w+")
+
+program_patt = re.compile(r"\s*program\s+\w+")
+
+end_program_patt = re.compile(r"\s*end\s+(\#)?\s*program\s+\w+")
